@@ -1,6 +1,3 @@
-# pip install phidata google-generativeai tavily-python
-# pip install streamlit
-
 import streamlit as st
 import os
 from PIL import Image
@@ -10,14 +7,21 @@ from phi.model.google import Gemini
 from phi.tools.tavily import TavilyTools
 from tempfile import NamedTemporaryFile
 from constants import SYSTEM_PROMPT, INSTRUCTIONS
+from dotenv import load_dotenv
 
-os.environ['TAVILY_API_KEY'] = st.secrets['TAVILY_KEY']
-os.environ['GOOGLE_API_KEY'] = st.secrets['GEMINI_KEY']
+# Load environment variables
+load_dotenv()
 
-MAX_IMAGE_WIDTH = 300
+tavily_api_key = os.getenv('TAVILY_API_KEY')
+google_api_key = os.getenv('GOOGLE_API_KEY')
+
+if not tavily_api_key or not google_api_key:
+    st.error("Pastikan TAVILY_API_KEY dan GOOGLE_API_KEY telah diatur dalam file .env Anda")
+    st.stop()
+
+MAX_IMAGE_WIDTH = 800
 
 def resize_image_for_display(image_file):
-    """Resize image for display only, returns bytes"""
     if isinstance(image_file, str):
         img = Image.open(image_file)
     else:
@@ -38,15 +42,20 @@ def get_agent():
         model=Gemini(id="gemini-2.0-flash-exp"),
         system_prompt=SYSTEM_PROMPT,
         instructions=INSTRUCTIONS,
-        tools=[TavilyTools(api_key=os.getenv("TAVILY_API_KEY"))],
+        tools=[TavilyTools(api_key=tavily_api_key)],
         markdown=True,
     )
 
 def analyze_image(image_path):
     agent = get_agent()
-    with st.spinner('Analyzing image...'):
+    with st.spinner('Melakukan analisis forensik...'):
         response = agent.run(
-            "Analyze the given image",
+            "Lakukan analisis forensik lengkap pada gambar ini dengan fokus pada:\n"
+            "1. Identifikasi dan analisis semua objek\n"
+            "2. Metadata dan karakteristik teknis gambar\n"
+            "3. Jika ada sidik jari, berikan formula Henry Classification\n"
+            "4. Transkripsi dan analisis teks atau tulisan tangan\n"
+            "Berikan analisis terstruktur dalam Bahasa Indonesia.",
             images=[image_path],
         )
         st.markdown(response.content)
@@ -57,71 +66,47 @@ def save_uploaded_file(uploaded_file):
         return f.name
 
 def main():
-    st.title("🔍 Product Ingredient Analyzer")
+    st.title("🔍 Penganalisis Forensik Digital")
+    st.markdown("""
+    Alat ini menyediakan analisis komprehensif untuk:
+    - Identifikasi dan analisis objek dalam gambar
+    - Analisis metadata dan teknis
+    - Formula sidik jari (Henry Classification)
+    - Transkripsi dan analisis teks/tulisan tangan
+    """)
     
-    if 'selected_example' not in st.session_state:
-        st.session_state.selected_example = None
-    if 'analyze_clicked' not in st.session_state:
-        st.session_state.analyze_clicked = False
-    
-    tab_examples, tab_upload, tab_camera = st.tabs([
-        "📚 Example Products", 
-        "📤 Upload Image", 
-        "📸 Take Photo"
+    tab_upload, tab_camera = st.tabs([
+        "📤 Unggah Gambar", 
+        "📸 Ambil Gambar"
     ])
-    
-    with tab_examples:
-        example_images = {
-            "🍫 Chocolate Bar": "images/hide_and_seek.jpg",
-            "🥤 Energy Drink": "images/bournvita.jpg",
-            "🥔 Potato Chips": "images/lays.jpg",
-            "🧴 Shampoo": "images/shampoo.jpg"
-        }
-        
-        cols = st.columns(4)
-        for idx, (name, path) in enumerate(example_images.items()):
-            with cols[idx]:
-                if st.button(name, use_container_width=True):
-                    st.session_state.selected_example = path
-                    st.session_state.analyze_clicked = False
     
     with tab_upload:
         uploaded_file = st.file_uploader(
-            "Upload product image", 
+            "Unggah gambar untuk analisis", 
             type=["jpg", "jpeg", "png"],
-            help="Upload a clear image of the product's ingredient list"
+            help="Unggah gambar yang jelas untuk analisis forensik"
         )
         if uploaded_file:
             resized_image = resize_image_for_display(uploaded_file)
-            st.image(resized_image, caption="Uploaded Image", use_container_width=False, width=MAX_IMAGE_WIDTH)
-            if st.button("🔍 Analyze Uploaded Image", key="analyze_upload"):
+            st.image(resized_image, caption="Gambar yang Diunggah", use_container_width=True)
+            if st.button("🔍 Analisis Gambar", key="analyze_upload"):
                 temp_path = save_uploaded_file(uploaded_file)
                 analyze_image(temp_path)
-                os.unlink(temp_path) 
+                os.unlink(temp_path)
     
     with tab_camera:
-        camera_photo = st.camera_input("Take a picture of the product")
+        camera_photo = st.camera_input("Ambil foto untuk analisis")
         if camera_photo:
             resized_image = resize_image_for_display(camera_photo)
-            st.image(resized_image, caption="Captured Photo", use_container_width=False, width=MAX_IMAGE_WIDTH)
-            if st.button("🔍 Analyze Captured Photo", key="analyze_camera"):
+            st.image(resized_image, caption="Gambar yang Diambil", use_container_width=True)
+            if st.button("🔍 Analisis Gambar", key="analyze_camera"):
                 temp_path = save_uploaded_file(camera_photo)
                 analyze_image(temp_path)
-                os.unlink(temp_path) 
-    
-    if st.session_state.selected_example:
-        st.divider()
-        st.subheader("Selected Product")
-        resized_image = resize_image_for_display(st.session_state.selected_example)
-        st.image(resized_image, caption="Selected Example", use_container_width=False, width=MAX_IMAGE_WIDTH)
-        
-        if st.button("🔍 Analyze Example", key="analyze_example") and not st.session_state.analyze_clicked:
-            st.session_state.analyze_clicked = True
-            analyze_image(st.session_state.selected_example)
+                os.unlink(temp_path)
 
 if __name__ == "__main__":
     st.set_page_config(
-        page_title="Product Ingredient Agent",
+        page_title="Penganalisis Forensik Digital",
         layout="wide",
         initial_sidebar_state="collapsed"
     )
